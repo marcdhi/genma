@@ -1,15 +1,16 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import Canvas from './components/Canvas';
 import PropertiesPanel from './components/PropertiesPanel';
 import ChatWidget from './components/ChatWidget';
 import { CanvasElement, ElementType } from './types';
-import { CursorIcon, SquareIcon, CircleIcon, TextIcon, ImageIcon, FrameIcon, MagicIcon, Spinner, LockIcon } from './components/Icons';
-import { generateUiDesign, GeneratedElement, generateImage } from './services/geminiService';
+import { CursorIcon, HandIcon, SquareIcon, CircleIcon, TextIcon, ImageIcon, FrameIcon, MagicIcon, Spinner, LockIcon } from './components/Icons';
+import { generateUiDesign, GeneratedElement, generateImage, GeneratedScreen } from './services/geminiService';
 
 const App: React.FC = () => {
   const [elements, setElements] = useState<CanvasElement[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [activeTool, setActiveTool] = useState<'cursor' | 'rect' | 'circle' | 'text' | 'frame'>('cursor');
+  const [activeTool, setActiveTool] = useState<'cursor' | 'hand' | 'rect' | 'circle' | 'text' | 'frame'>('cursor');
   const [draggedLayerId, setDraggedLayerId] = useState<string | null>(null);
   const [scale, setScale] = useState(1);
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -20,6 +21,35 @@ const App: React.FC = () => {
   const [genVibe, setGenVibe] = useState('Modern');
   const [isGenerating, setIsGenerating] = useState(false);
   const [genStatus, setGenStatus] = useState('');
+
+  // Delete logic
+  const deleteSelectedElements = () => {
+    setElements(prev => prev.filter(el => !selectedIds.includes(el.id)));
+    setSelectedIds([]);
+  };
+
+  // Keyboard Shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+        if ((e.key === 'Delete' || e.key === 'Backspace') && !renamingId) {
+            // Check if we are focusing on an input
+            const activeTag = document.activeElement?.tagName.toLowerCase();
+            if (activeTag !== 'input' && activeTag !== 'textarea') {
+                deleteSelectedElements();
+            }
+        }
+        // Hand tool shortcut 'h'
+        if (e.key === 'h' && !renamingId && document.activeElement?.tagName.toLowerCase() !== 'input') {
+            setActiveTool('hand');
+        }
+        // Move tool shortcut 'v'
+        if (e.key === 'v' && !renamingId && document.activeElement?.tagName.toLowerCase() !== 'input') {
+            setActiveTool('cursor');
+        }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedIds, renamingId]);
 
   const addElement = (type: ElementType, content?: string) => {
     const id = crypto.randomUUID();
@@ -62,82 +92,100 @@ const App: React.FC = () => {
     e.preventDefault();
     if (!genPrompt.trim()) return;
     setIsGenerating(true);
-    setGenStatus('Dreaming up layout...');
+    setGenStatus('Architecting layout...');
 
     try {
       // 1. Generate Layout structure with Theme
-      const design = await generateUiDesign(genPrompt, genVibe);
+      const designResponse = await generateUiDesign(genPrompt, genVibe);
       
-      // 2. Smart Placement
-      let startX = 100;
+      if (!designResponse || !designResponse.screens || !Array.isArray(designResponse.screens)) {
+          throw new Error("AI returned an incomplete design structure. Please try again.");
+      }
+
+      let currentXOffset = 100;
       if (elements.length > 0) {
           const maxElX = Math.max(...elements.map(e => e.x + e.width));
-          startX = maxElX + 100;
+          currentXOffset = maxElX + 100;
       }
-      
-      const frameId = crypto.randomUUID();
-      const frameElement: CanvasElement = {
-        id: frameId,
-        type: ElementType.FRAME,
-        name: design.frameName || 'Generated Frame',
-        x: startX,
-        y: 100,
-        width: design.width,
-        height: design.height,
-        fill: design.theme?.palette.background || '#0f0f0f',
-        rotation: 0,
-        opacity: 1,
-        borderRadius: 0,
-      };
 
-      // Convert JSON elements to CanvasElements
-      const childElements: CanvasElement[] = design.elements.map((el: GeneratedElement) => ({
-        id: crypto.randomUUID(),
-        type: el.type as ElementType,
-        name: el.name,
-        x: startX + el.x,
-        y: 100 + el.y,
-        width: el.width,
-        height: el.height,
-        fill: el.fill || '#ffffff',
-        stroke: el.stroke,
-        content: el.content,
-        fontSize: el.fontSize,
-        borderRadius: el.borderRadius || 0,
-        fontFamily: el.fontFamily || 'Inter, sans-serif',
-        fontWeight: el.fontWeight,
-        rotation: 0,
-        opacity: el.opacity || 1,
-      }));
+      const newElementsToAdd: CanvasElement[] = [];
+      const generatedImageRefs: { id: string, prompt: string }[] = [];
 
-      setElements(prev => [...prev, frameElement, ...childElements]);
+      // Iterate over multiple screens if returned
+      designResponse.screens.forEach((screen: GeneratedScreen) => {
+          const frameId = crypto.randomUUID();
+          const frameElement: CanvasElement = {
+            id: frameId,
+            type: ElementType.FRAME,
+            name: screen.frameName || 'Generated Frame',
+            x: currentXOffset,
+            y: 100,
+            width: screen.width,
+            height: screen.height,
+            fill: designResponse.theme?.palette.background || '#0f0f0f',
+            rotation: 0,
+            opacity: 1,
+            borderRadius: 0,
+          };
+          newElementsToAdd.push(frameElement);
+
+          // Add Children
+          if (screen.elements && Array.isArray(screen.elements)) {
+            screen.elements.forEach((el: GeneratedElement) => {
+               const childId = crypto.randomUUID();
+               newElementsToAdd.push({
+                  id: childId,
+                  type: el.type as ElementType,
+                  name: el.name,
+                  x: currentXOffset + el.x,
+                  y: 100 + el.y,
+                  width: el.width,
+                  height: el.height,
+                  fill: el.fill || '#ffffff',
+                  stroke: el.stroke,
+                  content: el.content,
+                  fontSize: el.fontSize,
+                  borderRadius: el.borderRadius || 0,
+                  fontFamily: el.fontFamily || 'Inter, sans-serif',
+                  fontWeight: el.fontWeight,
+                  rotation: 0,
+                  opacity: el.opacity || 1,
+               });
+  
+               if (el.type === 'IMAGE' && el.imagePrompt) {
+                   generatedImageRefs.push({ id: childId, prompt: el.imagePrompt });
+               }
+            });
+          }
+          
+          // Increment offset for next screen
+          currentXOffset += screen.width + 100;
+      });
+
+      setElements(prev => [...prev, ...newElementsToAdd]);
       setIsGenModalOpen(false);
       setGenPrompt('');
-      setSelectedIds([frameId]);
+      // Select the newly added frames
+      const frameIds = newElementsToAdd.filter(e => e.type === ElementType.FRAME).map(e => e.id);
+      setSelectedIds(frameIds);
 
       // 4. Async Asset Generation (Images)
-      const imageElements = design.elements.filter(el => el.type === 'IMAGE' && el.imagePrompt);
-      if (imageElements.length > 0) {
-         setGenStatus(`Generating ${imageElements.length} Assets...`);
+      if (generatedImageRefs.length > 0) {
+         setGenStatus(`Generating ${generatedImageRefs.length} assets...`);
          
-         for (let i = 0; i < childElements.length; i++) {
-             const originalRef = design.elements[i];
-             const canvasRef = childElements[i];
-             
-             if (originalRef.type === 'IMAGE' && originalRef.imagePrompt) {
-                 try {
-                     const generatedUrl = await generateImage(originalRef.imagePrompt);
-                     updateElement(canvasRef.id, { content: generatedUrl });
-                 } catch (err) {
-                     console.error("Failed to generate asset", err);
-                 }
+         for (const ref of generatedImageRefs) {
+             try {
+                 const generatedUrl = await generateImage(ref.prompt);
+                 updateElement(ref.id, { content: generatedUrl });
+             } catch (err) {
+                 console.error("Failed to generate asset", err);
              }
          }
       }
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Generation failed", error);
-      alert("Failed to generate design. Please try again.");
+      alert(`Failed to generate design: ${error.message}`);
     } finally {
       setIsGenerating(false);
       setGenStatus('');
@@ -183,34 +231,41 @@ const App: React.FC = () => {
   const selectedElements = elements.filter(el => selectedIds.includes(el.id));
 
   return (
-    <div className="flex flex-col h-screen bg-[#0a0a0a] text-gray-200 overflow-hidden font-sans selection:bg-blue-500 selection:text-white">
+    <div className="flex flex-col h-screen bg-[#09090b] text-zinc-300 overflow-hidden font-sans selection:bg-zinc-700 selection:text-white">
       
-      {/* Minimal Header */}
-      <div className="h-12 bg-[#0a0a0a] border-b border-[#222] flex items-center px-4 justify-between z-10">
-        <div className="flex items-center gap-6">
-          <div className="font-semibold tracking-tight text-white flex items-center gap-2 select-none">
-            <div className="w-4 h-4 bg-white rounded-full"></div>
+      {/* Minimal Pro Header */}
+      <div className="h-12 bg-[#09090b] border-b border-zinc-800 flex items-center px-4 justify-between z-20 relative">
+        {/* Left: Branding */}
+        <div className="flex items-center gap-4">
+          <div className="font-bold tracking-tight text-zinc-100 text-sm flex items-center gap-2 select-none">
+            <div className="w-3 h-3 bg-white rounded-sm"></div>
             Genma
-          </div>
-          
-          <div className="flex items-center gap-1 bg-[#1a1a1a] p-1 rounded-lg border border-[#222]">
-            <button onClick={() => setActiveTool('cursor')} className={`p-1.5 rounded hover:bg-[#333] transition-colors ${activeTool === 'cursor' ? 'bg-[#333] text-white' : 'text-gray-500'}`} title="Move (V)"><CursorIcon /></button>
-            <button onClick={() => addElement(ElementType.FRAME)} className="p-1.5 rounded hover:bg-[#333] transition-colors text-gray-500" title="Frame (F)"><FrameIcon /></button>
-            <button onClick={() => addElement(ElementType.RECTANGLE)} className="p-1.5 rounded hover:bg-[#333] transition-colors text-gray-500" title="Rectangle (R)"><SquareIcon /></button>
-            <button onClick={() => addElement(ElementType.CIRCLE)} className="p-1.5 rounded hover:bg-[#333] transition-colors text-gray-500" title="Circle (O)"><CircleIcon /></button>
-            <button onClick={() => addElement(ElementType.TEXT)} className="p-1.5 rounded hover:bg-[#333] transition-colors text-gray-500" title="Text (T)"><TextIcon /></button>
-            <label className="p-1.5 rounded hover:bg-[#333] transition-colors text-gray-500 cursor-pointer" title="Image (I)"><ImageIcon /><input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} /></label>
-            <div className="w-px h-4 bg-[#333] mx-1"></div>
-            <button onClick={() => setIsGenModalOpen(true)} className="p-1.5 rounded hover:bg-blue-900/30 text-blue-400 hover:text-blue-300 transition-colors" title="Generate UI"><MagicIcon /></button>
           </div>
         </div>
         
+        {/* Center: Floating Toolbar */}
+        <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2">
+          <div className="flex items-center gap-0.5 bg-zinc-900/50 backdrop-blur-md p-1 rounded-md border border-zinc-800 shadow-sm">
+            <button onClick={() => setActiveTool('cursor')} className={`p-1.5 rounded hover:bg-zinc-800 transition-colors ${activeTool === 'cursor' ? 'bg-zinc-800 text-white' : 'text-zinc-500'}`} title="Move (V)"><CursorIcon /></button>
+            <button onClick={() => setActiveTool('hand')} className={`p-1.5 rounded hover:bg-zinc-800 transition-colors ${activeTool === 'hand' ? 'bg-zinc-800 text-white' : 'text-zinc-500'}`} title="Hand Tool (H)"><HandIcon /></button>
+            <div className="w-px h-4 bg-zinc-800 mx-1"></div>
+            <button onClick={() => addElement(ElementType.FRAME)} className="p-1.5 rounded hover:bg-zinc-800 transition-colors text-zinc-500 hover:text-zinc-300" title="Frame (F)"><FrameIcon /></button>
+            <button onClick={() => addElement(ElementType.RECTANGLE)} className="p-1.5 rounded hover:bg-zinc-800 transition-colors text-zinc-500 hover:text-zinc-300" title="Rectangle (R)"><SquareIcon /></button>
+            <button onClick={() => addElement(ElementType.CIRCLE)} className="p-1.5 rounded hover:bg-zinc-800 transition-colors text-zinc-500 hover:text-zinc-300" title="Circle (O)"><CircleIcon /></button>
+            <button onClick={() => addElement(ElementType.TEXT)} className="p-1.5 rounded hover:bg-zinc-800 transition-colors text-zinc-500 hover:text-zinc-300" title="Text (T)"><TextIcon /></button>
+            <label className="p-1.5 rounded hover:bg-zinc-800 transition-colors text-zinc-500 hover:text-zinc-300 cursor-pointer" title="Image (I)"><ImageIcon /><input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} /></label>
+            <div className="w-px h-4 bg-zinc-800 mx-1"></div>
+            <button onClick={() => setIsGenModalOpen(true)} className="p-1.5 rounded hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors" title="Generate UI"><MagicIcon /></button>
+          </div>
+        </div>
+        
+        {/* Right: Zoom/Status */}
         <div className="flex items-center gap-3">
-           {isGenerating && <div className="flex items-center gap-2 text-xs text-blue-400 bg-blue-900/20 px-2 py-1 rounded"><Spinner /> {genStatus}</div>}
-           <div className="flex items-center text-xs text-gray-500 gap-2 bg-[#1a1a1a] px-2 py-1 rounded border border-[#222]">
-             <button onClick={() => setScale(Math.max(0.1, scale - 0.1))} className="hover:text-white">-</button>
+           {isGenerating && <div className="flex items-center gap-2 text-[10px] font-medium text-zinc-400 uppercase tracking-wider"><Spinner /> {genStatus}</div>}
+           <div className="flex items-center text-[10px] font-medium text-zinc-500 gap-2">
+             <button onClick={() => setScale(Math.max(0.1, scale - 0.1))} className="hover:text-white px-1">-</button>
              <span className="w-8 text-center">{Math.round(scale * 100)}%</span>
-             <button onClick={() => setScale(Math.min(5, scale + 0.1))} className="hover:text-white">+</button>
+             <button onClick={() => setScale(Math.min(5, scale + 0.1))} className="hover:text-white px-1">+</button>
            </div>
         </div>
       </div>
@@ -219,9 +274,11 @@ const App: React.FC = () => {
       <div className="flex flex-1 overflow-hidden relative">
         
         {/* Minimal Layers Panel */}
-        <div className="w-48 bg-[#0a0a0a] border-r border-[#222] flex flex-col z-10">
-          <div className="p-3 text-[10px] font-bold text-gray-600 uppercase tracking-wider select-none">Layers</div>
-          <div className="flex-1 overflow-y-auto space-y-0.5 px-1">
+        <div className="w-52 bg-[#09090b] border-r border-zinc-800 flex flex-col z-10">
+          <div className="h-10 flex items-center px-4 border-b border-zinc-800/50">
+             <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Layers</span>
+          </div>
+          <div className="flex-1 overflow-y-auto py-2">
             {[...elements].reverse().map(el => (
               <div 
                 key={el.id}
@@ -236,25 +293,27 @@ const App: React.FC = () => {
                         setSelectedIds([el.id]);
                     }
                 }}
-                className={`group px-3 py-2 text-xs rounded cursor-default flex items-center gap-2 transition-all border border-transparent
-                  ${selectedIds.includes(el.id) ? 'bg-[#1a1a1a] text-white border-[#222]' : 'text-gray-500 hover:text-gray-300 hover:bg-[#111]'}
+                className={`group px-4 py-1.5 text-xs cursor-default flex items-center gap-2 transition-colors
+                  ${selectedIds.includes(el.id) ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900'}
                   ${draggedLayerId === el.id ? 'opacity-50' : 'opacity-100'}
                 `}
               >
-                <span className="opacity-50 w-3">{el.locked ? <LockIcon /> : ''}</span>
-                {el.type === ElementType.FRAME && <FrameIcon />}
-                {el.type === ElementType.RECTANGLE && <SquareIcon />}
-                {el.type === ElementType.CIRCLE && <CircleIcon />}
-                {el.type === ElementType.TEXT && <TextIcon />}
-                {el.type === ElementType.IMAGE && <ImageIcon />}
-                {el.type === ElementType.VIDEO && <span className="text-[9px] font-bold">VID</span>}
-                {el.type === ElementType.PATH && <span className="text-[9px] font-bold">SVG</span>}
+                <span className="opacity-0 group-hover:opacity-100 w-3 text-zinc-600">{el.locked ? <LockIcon /> : '⋮'}</span>
+                <span className="text-zinc-500">
+                    {el.type === ElementType.FRAME && <FrameIcon />}
+                    {el.type === ElementType.RECTANGLE && <SquareIcon />}
+                    {el.type === ElementType.CIRCLE && <CircleIcon />}
+                    {el.type === ElementType.TEXT && <TextIcon />}
+                    {el.type === ElementType.IMAGE && <ImageIcon />}
+                    {el.type === ElementType.VIDEO && <span className="text-[9px] font-bold border border-current px-0.5 rounded">V</span>}
+                    {el.type === ElementType.PATH && <span className="text-[9px] font-bold border border-current px-0.5 rounded">P</span>}
+                </span>
                 
                 {renamingId === el.id ? (
                   <input 
                     autoFocus
                     type="text"
-                    className="bg-[#111] text-white border border-[#333] rounded px-1 w-full outline-none"
+                    className="bg-black text-white border border-zinc-700 rounded px-1 w-full outline-none text-xs -ml-1"
                     defaultValue={el.name}
                     onBlur={() => setRenamingId(null)}
                     onKeyDown={(e) => { if(e.key === 'Enter') { handleLayerNameChange(el.id, e.currentTarget.value); setRenamingId(null); }}}
@@ -277,46 +336,51 @@ const App: React.FC = () => {
           onUpdateElement={updateElement}
           scale={scale}
           setScale={setScale}
+          activeTool={activeTool}
         />
 
         {/* Properties Panel */}
         <PropertiesPanel 
           selectedElements={selectedElements}
           onUpdateElement={updateElement}
+          onDeleteElement={deleteSelectedElements}
         />
 
-        {/* Generate Modal */}
+        {/* Pro Generation Modal */}
         {isGenModalOpen && (
-          <div className="absolute inset-0 bg-black/50 z-50 flex items-center justify-center backdrop-blur-sm">
-            <div className="bg-[#1a1a1a] border border-[#333] rounded-lg shadow-2xl w-[400px] p-6">
-               <div className="flex justify-between items-center mb-4">
-                 <h2 className="text-white font-medium flex items-center gap-2">
-                   <MagicIcon /> Generate Design
-                 </h2>
-                 <button onClick={() => setIsGenModalOpen(false)} className="text-gray-500 hover:text-white">✕</button>
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center">
+            <div className="bg-[#09090b] border border-zinc-800 rounded-xl shadow-2xl w-[500px] overflow-hidden animate-in fade-in zoom-in duration-200">
+               <div className="p-1 bg-zinc-900 border-b border-zinc-800 flex justify-between items-center">
+                   <div className="flex items-center gap-2 px-3 py-2">
+                       <MagicIcon />
+                       <span className="text-xs font-medium text-white">Design Generator</span>
+                   </div>
+                   <button onClick={() => setIsGenModalOpen(false)} className="text-zinc-500 hover:text-white px-3 py-2 transition-colors">✕</button>
                </div>
                
-               <form onSubmit={handleGenerateDesign}>
-                 <div className="mb-4">
-                   <label className="block text-xs text-gray-500 mb-2">Describe your idea</label>
+               <form onSubmit={handleGenerateDesign} className="p-5">
+                 <div className="relative mb-6">
                    <textarea
                      autoFocus
                      value={genPrompt}
                      onChange={(e) => setGenPrompt(e.target.value)}
-                     placeholder="E.g., A fintech dashboard with a sidebar and chart."
-                     className="w-full bg-[#111] border border-[#333] rounded p-3 text-white text-sm focus:border-blue-500 focus:outline-none h-24 resize-none"
+                     placeholder="Describe the interface you want to build... (e.g. 'A dark mode analytics dashboard with a sidebar and data charts')"
+                     className="w-full bg-transparent text-white text-sm placeholder-zinc-600 focus:outline-none h-32 resize-none leading-relaxed"
                    />
+                   <div className="absolute bottom-0 right-0 pointer-events-none">
+                       <span className="text-[10px] text-zinc-700 bg-[#09090b] px-1">Gemini 3 Pro</span>
+                   </div>
                  </div>
                  
-                 <div className="mb-4">
-                    <label className="block text-xs text-gray-500 mb-2">Vibe</label>
-                    <div className="grid grid-cols-3 gap-2">
-                        {['Modern', 'Minimal', 'Pastel', 'Dark', 'Brutalist', 'Wireframe'].map(v => (
+                 <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-3 overflow-x-auto no-scrollbar pb-2">
+                        <span className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider whitespace-nowrap">Style</span>
+                        {['Modern', 'Minimal', 'Dark', 'Swiss', 'Brutalist'].map(v => (
                             <button 
                                 key={v}
                                 type="button"
                                 onClick={() => setGenVibe(v)}
-                                className={`text-xs py-1.5 rounded border ${genVibe === v ? 'bg-blue-900/40 border-blue-500 text-blue-200' : 'bg-[#222] border-transparent text-gray-400 hover:bg-[#333]'}`}
+                                className={`text-[11px] px-2.5 py-1 rounded-full border transition-all whitespace-nowrap ${genVibe === v ? 'bg-zinc-100 text-black border-zinc-100 font-medium' : 'bg-transparent text-zinc-500 border-zinc-800 hover:border-zinc-600'}`}
                             >
                                 {v}
                             </button>
@@ -324,21 +388,12 @@ const App: React.FC = () => {
                     </div>
                  </div>
                  
-                 <div className="flex items-center justify-between text-xs text-gray-500 mb-4 bg-[#222] p-2 rounded">
-                    <span>Included:</span>
-                    <div className="flex gap-2">
-                        <span className="text-blue-400">Vectors</span>
-                        <span className="text-purple-400">Theme</span>
-                        <span className="text-green-400">Assets</span>
-                    </div>
-                 </div>
-                 
                  <button 
                    type="submit" 
                    disabled={isGenerating}
-                   className="w-full bg-blue-600 hover:bg-blue-500 text-white py-2 rounded font-medium text-sm flex items-center justify-center gap-2 transition-colors"
+                   className="w-full bg-white hover:bg-zinc-200 text-black py-2.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                  >
-                   {isGenerating ? <Spinner /> : 'Generate UI'}
+                   {isGenerating ? <Spinner /> : 'Generate Design'}
                  </button>
                </form>
             </div>

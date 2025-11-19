@@ -1,7 +1,30 @@
+
 import { GoogleGenAI, Modality, Type } from "@google/genai";
 import { CanvasElement, ElementType } from "../types";
 
 const getAiClient = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+/**
+ * Helper to parse JSON that might be wrapped in markdown code blocks or text
+ */
+const cleanAndParseJson = (text: string) => {
+  let cleaned = text.trim();
+  
+  // Locate the first '{' and last '}' to handle any preamble text or markdown
+  const firstOpen = cleaned.indexOf('{');
+  const lastClose = cleaned.lastIndexOf('}');
+  
+  if (firstOpen !== -1 && lastClose !== -1 && lastClose > firstOpen) {
+    cleaned = cleaned.substring(firstOpen, lastClose + 1);
+  }
+  
+  try {
+    return JSON.parse(cleaned);
+  } catch (e) {
+    console.error("Failed to parse JSON:", cleaned);
+    throw new Error("Invalid JSON response from AI");
+  }
+};
 
 /**
  * AI Chatbot using gemini-3-pro-preview
@@ -74,7 +97,8 @@ export const modifyCanvasElement = async (element: CanvasElement, prompt: string
   const ai = getAiClient();
   
   const systemInstruction = `
-    You are a UI helper. Your job is to modify the properties of a UI element based on a user request.
+    You are a UI Design Expert. Your job is to modify the properties of a UI element based on a user request.
+    Use 'gemini-3-pro-preview' reasoning to ensure the modification fits standard design patterns.
     Return ONLY the JSON properties that need to change.
     
     Current Element JSON: ${JSON.stringify(element)}
@@ -91,10 +115,12 @@ export const modifyCanvasElement = async (element: CanvasElement, prompt: string
   `;
 
   const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash',
+    model: 'gemini-3-pro-preview',
     contents: `User Request: ${prompt}`,
     config: {
       systemInstruction: systemInstruction,
+      maxOutputTokens: 8192,
+      thinkingConfig: { thinkingBudget: 1024 },
       responseMimeType: 'application/json',
       responseSchema: {
         type: Type.OBJECT,
@@ -114,7 +140,7 @@ export const modifyCanvasElement = async (element: CanvasElement, prompt: string
   });
 
   if (response.text) {
-    return JSON.parse(response.text) as Partial<CanvasElement>;
+    return cleanAndParseJson(response.text) as Partial<CanvasElement>;
   }
   throw new Error("Failed to modify element");
 };
@@ -203,10 +229,14 @@ export interface GeneratedElement {
   imagePrompt?: string; // For generating images later
 }
 
-export interface GeneratedDesign {
+export interface GeneratedScreen {
   frameName: string;
   width: number;
   height: number;
+  elements: GeneratedElement[];
+}
+
+export interface GeneratedDesignResponse {
   theme?: {
     name: string;
     palette: {
@@ -216,46 +246,50 @@ export interface GeneratedDesign {
       text: string;
     };
   };
-  elements: GeneratedElement[];
+  screens: GeneratedScreen[];
 }
 
-export const generateUiDesign = async (prompt: string, vibe: string = 'Modern', width: number = 1440, height: number = 900): Promise<GeneratedDesign> => {
+export const generateUiDesign = async (prompt: string, vibe: string = 'Modern'): Promise<GeneratedDesignResponse> => {
   const ai = getAiClient();
   
   const systemInstruction = `
-  You are a World-Class UI/UX Design Director. Your goal is to generate high-fidelity, production-ready UI layouts.
+  You are a World-Class Senior Product Designer. Your goal is to generate high-fidelity, production-ready UI layouts.
   
   **DESIGN PHILOSOPHY:**
-  - **VIBE:** ${vibe}. (If 'Minimal': use whitespace, black/white/grey, Inter font. If 'Pastel': use soft colors, rounded corners. If 'Brutalist': use strokes, bold type, neo-brutalism.)
-  - **NO AI SLOP:** Do NOT use generic neon purple/blue gradients unless explicitly requested.
-  - **COLOR PALETTE:** Define a cohesive color palette (Background, Surface, Primary, Text). Use it strictly.
-  - **ASSETS:** Intelligent decision making. 
-    - Use 'IMAGE' placeholders only if the design specifically needs photos (profiles, hero images). 
-    - Use 'PATH' (SVG) for icons, abstract shapes, and logos.
-  - **TYPOGRAPHY:** Use strict hierarchy. Headings (Bold, Large), Body (Regular, Medium), Captions (Small, Light).
-  - **COMPOSITION:** Use Frames/Groups logic. Cards should have a background 'RECTANGLE' and text/images on top.
+  - **AVOID AI SLOP:** Do not create generic, flat, "default" looking designs. No generic purple/blue neon unless asked.
+  - **VIBE:** ${vibe}.
+  - **LAYOUT:** Use asymmetric balances, interesting whitespace, and sophisticated grid systems (e.g., Bento grids).
+  - **TYPOGRAPHY:** Use strong typographic hierarchy. Vary font sizes (Display vs Body), weights, and opacity (Text-primary vs Text-secondary).
+  - **INTERACTIVITY:** Visually suggest interactivity (buttons, inputs, hover states).
+  - **THINKING:** Use your thinking budget to calculate exact pixel dimensions to ensure elements fit and are aligned perfectly.
+  - **MULTI-SCREEN:** If the prompt implies a flow (e.g., "Login and Dashboard"), generate multiple screens in the 'screens' array.
   
-  **OUTPUT RULES:**
-  - Coordinates (x,y) are relative to the Frame (0,0).
-  - 'PATH' elements must contain valid SVG path data in the 'content' field.
-  - 'IMAGE' elements must have a detailed 'imagePrompt' for generation.
-  - Ensure sufficient contrast.
+  **VISUALS:**
+  - **Palette:** Generate a cohesive, professional color palette (Swiss, Monochrome, Pastel, or Deep Dark Mode).
+  - **Shapes:** Use 'RECTANGLE' with different borderRadius for buttons, cards, and inputs.
+  - **Images:** Use 'IMAGE' type with a descriptive 'imagePrompt' for areas that need high-quality photos.
+  - **Vectors:** Use 'PATH' for icons or abstract decorative elements.
   
-  Return a JSON object with the design system and elements.
+  **OUTPUT:**
+  - Return a JSON object with 'theme' and 'screens'.
+  - Coordinates (x,y) are relative to the screen frame.
   `;
 
+  const contents = [
+      { text: `Generate a ${vibe} design for: ${prompt}.` }
+  ];
+
   const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash',
-    contents: `Generate a ${vibe} design for: ${prompt}. Dimensions: ${width}x${height}.`,
+    model: 'gemini-3-pro-preview',
+    contents: contents,
     config: {
       systemInstruction: systemInstruction,
+      maxOutputTokens: 65536, 
+      thinkingConfig: { thinkingBudget: 2048 },
       responseMimeType: 'application/json',
       responseSchema: {
         type: Type.OBJECT,
         properties: {
-          frameName: { type: Type.STRING },
-          width: { type: Type.NUMBER },
-          height: { type: Type.NUMBER },
           theme: {
             type: Type.OBJECT,
             properties: {
@@ -271,38 +305,49 @@ export const generateUiDesign = async (prompt: string, vibe: string = 'Modern', 
               }
             }
           },
-          elements: {
+          screens: {
             type: Type.ARRAY,
             items: {
-              type: Type.OBJECT,
-              properties: {
-                type: { type: Type.STRING, enum: ['RECTANGLE', 'CIRCLE', 'TEXT', 'PATH', 'IMAGE'] },
-                name: { type: Type.STRING },
-                x: { type: Type.NUMBER },
-                y: { type: Type.NUMBER },
-                width: { type: Type.NUMBER },
-                height: { type: Type.NUMBER },
-                fill: { type: Type.STRING },
-                stroke: { type: Type.STRING },
-                content: { type: Type.STRING, description: "Text content or SVG path data" },
-                imagePrompt: { type: Type.STRING, description: "Prompt to generate high quality image if type is IMAGE" },
-                fontSize: { type: Type.NUMBER },
-                borderRadius: { type: Type.NUMBER },
-                fontFamily: { type: Type.STRING },
-                fontWeight: { type: Type.STRING },
-                opacity: { type: Type.NUMBER }
-              },
-              required: ['type', 'x', 'y', 'width', 'height', 'fill']
+                type: Type.OBJECT,
+                properties: {
+                    frameName: { type: Type.STRING },
+                    width: { type: Type.NUMBER },
+                    height: { type: Type.NUMBER },
+                    elements: {
+                        type: Type.ARRAY,
+                        items: {
+                        type: Type.OBJECT,
+                        properties: {
+                            type: { type: Type.STRING, enum: ['RECTANGLE', 'CIRCLE', 'TEXT', 'PATH', 'IMAGE'] },
+                            name: { type: Type.STRING },
+                            x: { type: Type.NUMBER },
+                            y: { type: Type.NUMBER },
+                            width: { type: Type.NUMBER },
+                            height: { type: Type.NUMBER },
+                            fill: { type: Type.STRING },
+                            stroke: { type: Type.STRING },
+                            content: { type: Type.STRING, description: "Text content or SVG path data" },
+                            imagePrompt: { type: Type.STRING, description: "Prompt to generate high quality image if type is IMAGE" },
+                            fontSize: { type: Type.NUMBER },
+                            borderRadius: { type: Type.NUMBER },
+                            fontFamily: { type: Type.STRING },
+                            fontWeight: { type: Type.STRING },
+                            opacity: { type: Type.NUMBER }
+                        },
+                        required: ['type', 'x', 'y', 'width', 'height', 'fill']
+                        }
+                    }
+                }
             }
           }
         },
-        required: ['frameName', 'width', 'height', 'elements']
+        required: ['screens', 'theme']
       }
     }
   });
 
   if (response.text) {
-    return JSON.parse(response.text) as GeneratedDesign;
+    return cleanAndParseJson(response.text) as GeneratedDesignResponse;
   }
   throw new Error("Failed to generate design JSON");
 };
