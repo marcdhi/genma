@@ -27,6 +27,15 @@ export interface CanvasElement {
   fontSize?: number;
   fontWeight?: string;
   locked?: boolean;
+  // Effects
+  shadow?: {
+    x: number;
+    y: number;
+    blur: number;
+    color: string;
+  };
+  blur?: number; // Layer blur in px
+  noise?: number; // Noise opacity 0-1
 }
 
 export interface ChatMessage {

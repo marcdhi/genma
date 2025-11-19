@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { CanvasElement, ElementType } from '../types';
 import { analyzeImage, editImage, generateVideo, modifyCanvasElement } from '../services/geminiService';
-import { SparklesIcon, LockIcon, UnlockIcon, TrashIcon } from './Icons';
+import { SparklesIcon, LockIcon, UnlockIcon, TrashIcon, EffectsIcon, ShadowIcon, BlurIcon, NoiseIcon, GradientIcon } from './Icons';
 
 interface PropertiesPanelProps {
   selectedElements: CanvasElement[];
@@ -10,12 +10,23 @@ interface PropertiesPanelProps {
   onDeleteElement: () => void;
 }
 
+const GOOGLE_FONTS = [
+    'Inter', 'Roboto', 'Open Sans', 'Lato', 'Montserrat', 'Poppins', 'Raleway', 'Nunito', 
+    'Playfair Display', 'Merriweather', 'Oswald', 'Work Sans', 'Crimson Text'
+];
+
 const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedElements, onUpdateElement, onDeleteElement }) => {
   const [activeTab, setActiveTab] = useState<'design' | 'ai'>('design');
   const [aiPrompt, setAiPrompt] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [aiOutput, setAiOutput] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  
+  // Gradient State Local Control
+  const [gradMode, setGradMode] = useState<'solid' | 'gradient'>('solid');
+  const [gradStart, setGradStart] = useState('#3b82f6');
+  const [gradEnd, setGradEnd] = useState('#ef4444');
+  const [gradAngle, setGradAngle] = useState(135);
 
   if (selectedElements.length === 0) {
     return (
@@ -42,14 +53,6 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedElements, onU
                  onClick={() => selectedElements.forEach(el => onUpdateElement(el.id, { locked: false }))}
                  className="bg-zinc-900 hover:bg-zinc-800 text-zinc-300 py-2 rounded border border-zinc-800 transition-colors"
                >Unlock All</button>
-               <button 
-                 onClick={() => selectedElements.forEach(el => onUpdateElement(el.id, { x: selectedElements[0].x }))}
-                 className="bg-zinc-900 hover:bg-zinc-800 text-zinc-300 py-2 rounded border border-zinc-800 transition-colors"
-               >Align Left</button>
-               <button 
-                 onClick={() => selectedElements.forEach(el => onUpdateElement(el.id, { y: selectedElements[0].y }))}
-                 className="bg-zinc-900 hover:bg-zinc-800 text-zinc-300 py-2 rounded border border-zinc-800 transition-colors"
-               >Align Top</button>
            </div>
         </div>
       );
@@ -59,6 +62,16 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedElements, onU
 
   const handleInputChange = (field: keyof CanvasElement, value: string | number | boolean) => {
     onUpdateElement(selectedElement.id, { [field]: value });
+  };
+
+  const updateGradient = (start: string, end: string, angle: number) => {
+      const gradString = `linear-gradient(${angle}deg, ${start}, ${end})`;
+      handleInputChange('fill', gradString);
+  };
+  
+  const handleShadowChange = (key: 'x'|'y'|'blur'|'color', val: any) => {
+      const current = selectedElement.shadow || { x: 0, y: 4, blur: 10, color: 'rgba(0,0,0,0.5)' };
+      handleInputChange('shadow', { ...current, [key]: val });
   };
 
   const handleAiAction = async (action: 'edit' | 'analyze' | 'animate' | 'modify') => {
@@ -108,7 +121,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedElements, onU
       </div>
 
       {activeTab === 'design' && (
-        <div className="p-4 space-y-8">
+        <div className="p-4 space-y-6">
           <section>
              <div className="flex justify-between items-center mb-4">
                  <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Layout</h3>
@@ -138,19 +151,31 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedElements, onU
           </section>
 
           <section>
-            <h3 className="text-[10px] font-bold text-zinc-500 uppercase mb-4 tracking-wider">Style</h3>
+            <h3 className="text-[10px] font-bold text-zinc-500 uppercase mb-4 tracking-wider">Fill</h3>
             
-            <div className="mb-4">
-                <label className="block text-[10px] text-zinc-500 mb-1.5">Fill</label>
+            <div className="flex gap-2 mb-3 p-1 bg-zinc-900 rounded-md">
+                <button onClick={() => setGradMode('solid')} className={`flex-1 py-1 rounded text-[10px] ${gradMode === 'solid' ? 'bg-zinc-700 text-white' : 'text-zinc-500'}`}>Solid</button>
+                <button onClick={() => setGradMode('gradient')} className={`flex-1 py-1 rounded text-[10px] flex justify-center ${gradMode === 'gradient' ? 'bg-zinc-700 text-white' : 'text-zinc-500'}`}><GradientIcon /></button>
+            </div>
+
+            {gradMode === 'solid' ? (
                 <div className="flex gap-2 items-center">
                     <div className="w-6 h-6 rounded-full border border-zinc-700 overflow-hidden relative shadow-sm">
                         <input type="color" value={selectedElement.fill.startsWith('#') ? selectedElement.fill : '#000000'} onChange={(e) => handleInputChange('fill', e.target.value)} className="absolute -top-2 -left-2 w-10 h-10 cursor-pointer border-none p-0" />
                     </div>
                     <input type="text" value={selectedElement.fill} onChange={(e) => handleInputChange('fill', e.target.value)} className="flex-1 bg-transparent border-b border-zinc-800 focus:border-zinc-500 pb-1 text-white outline-none font-mono" />
                 </div>
-            </div>
+            ) : (
+                <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                        <input type="color" value={gradStart} onChange={e => { setGradStart(e.target.value); updateGradient(e.target.value, gradEnd, gradAngle); }} className="bg-transparent w-8 h-8 cursor-pointer"/>
+                        <input type="range" min="0" max="360" value={gradAngle} onChange={e => { setGradAngle(parseInt(e.target.value)); updateGradient(gradStart, gradEnd, parseInt(e.target.value)); }} className="w-24 accent-white h-1 bg-zinc-800 rounded appearance-none" />
+                        <input type="color" value={gradEnd} onChange={e => { setGradEnd(e.target.value); updateGradient(gradStart, e.target.value, gradAngle); }} className="bg-transparent w-8 h-8 cursor-pointer"/>
+                    </div>
+                </div>
+            )}
 
-             <div className="mb-4">
+             <div className="mt-4">
                 <div className="flex justify-between mb-2">
                     <span className="text-zinc-500">Opacity</span>
                     <span className="text-zinc-300">{Math.round(selectedElement.opacity * 100)}%</span>
@@ -162,24 +187,18 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedElements, onU
           {selectedElement.type === ElementType.TEXT && (
               <section>
                   <h3 className="text-[10px] font-bold text-zinc-500 uppercase mb-4 tracking-wider">Typography</h3>
-                  <textarea value={selectedElement.content} onChange={(e) => handleInputChange('content', e.target.value)} className="w-full bg-zinc-900/50 border border-zinc-800 focus:border-zinc-600 rounded-md p-2 text-white outline-none min-h-[80px] mb-4 text-sm resize-y" />
+                  <textarea value={selectedElement.content} onChange={(e) => handleInputChange('content', e.target.value)} className="w-full bg-zinc-900/50 border border-zinc-800 focus:border-zinc-600 rounded-md p-2 text-white outline-none min-h-[60px] mb-4 text-sm resize-y" />
                   <div className="space-y-3">
-                      <div className="flex justify-between items-center">
-                          <span className="text-zinc-500">Font</span>
-                          <select value={selectedElement.fontFamily || 'Inter, sans-serif'} onChange={(e) => handleInputChange('fontFamily', e.target.value)} className="bg-transparent text-right text-white outline-none cursor-pointer">
-                              <option value="Inter, sans-serif">Inter</option>
-                              <option value="Roboto, sans-serif">Roboto</option>
-                              <option value="Playfair Display, serif">Playfair</option>
-                              <option value="Montserrat, sans-serif">Montserrat</option>
-                          </select>
-                      </div>
-                      <div className="flex justify-between items-center">
-                          <span className="text-zinc-500">Weight</span>
-                          <select value={selectedElement.fontWeight || '400'} onChange={(e) => handleInputChange('fontWeight', e.target.value)} className="bg-transparent text-right text-white outline-none cursor-pointer">
-                              <option value="300">Light</option>
-                              <option value="400">Regular</option>
-                              <option value="600">SemiBold</option>
-                              <option value="700">Bold</option>
+                      <div>
+                          <div className="text-zinc-500 mb-1">Font Family</div>
+                          <select 
+                            value={selectedElement.fontFamily?.split(',')[0].replace(/'/g, '') || 'Inter'} 
+                            onChange={(e) => handleInputChange('fontFamily', `'${e.target.value}', sans-serif`)} 
+                            className="w-full bg-zinc-900 border border-zinc-800 rounded p-1.5 text-white outline-none"
+                          >
+                              {GOOGLE_FONTS.map(f => (
+                                  <option key={f} value={f} style={{ fontFamily: f }}>{f}</option>
+                              ))}
                           </select>
                       </div>
                       <div className="flex justify-between items-center">
@@ -189,6 +208,42 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedElements, onU
                   </div>
               </section>
           )}
+          
+          {/* Effects Section */}
+          <section>
+              <h3 className="text-[10px] font-bold text-zinc-500 uppercase mb-4 tracking-wider flex items-center gap-2"><EffectsIcon /> Effects</h3>
+              
+              {/* Shadow */}
+              <div className="mb-4">
+                  <div className="flex justify-between items-center mb-2">
+                     <label className="text-zinc-400 text-[11px] flex gap-2 items-center"><ShadowIcon /> Drop Shadow</label>
+                  </div>
+                  <div className="grid grid-cols-4 gap-2">
+                      <input type="number" placeholder="X" value={selectedElement.shadow?.x || 0} onChange={e => handleShadowChange('x', parseInt(e.target.value))} className="bg-zinc-900 rounded p-1 text-center outline-none"/>
+                      <input type="number" placeholder="Y" value={selectedElement.shadow?.y || 0} onChange={e => handleShadowChange('y', parseInt(e.target.value))} className="bg-zinc-900 rounded p-1 text-center outline-none"/>
+                      <input type="number" placeholder="B" value={selectedElement.shadow?.blur || 0} onChange={e => handleShadowChange('blur', parseInt(e.target.value))} className="bg-zinc-900 rounded p-1 text-center outline-none"/>
+                      <input type="color" value={selectedElement.shadow?.color || '#000000'} onChange={e => handleShadowChange('color', e.target.value)} className="h-full w-full bg-transparent cursor-pointer"/>
+                  </div>
+              </div>
+
+              {/* Blur */}
+              <div className="mb-4">
+                 <div className="flex justify-between mb-1">
+                    <label className="text-zinc-400 text-[11px] flex gap-2 items-center"><BlurIcon /> Layer Blur</label>
+                    <span className="text-zinc-500">{selectedElement.blur || 0}px</span>
+                 </div>
+                 <input type="range" min="0" max="50" value={selectedElement.blur || 0} onChange={e => handleInputChange('blur', parseInt(e.target.value))} className="w-full accent-white h-1 bg-zinc-800 rounded appearance-none"/>
+              </div>
+
+              {/* Noise */}
+              <div>
+                 <div className="flex justify-between mb-1">
+                    <label className="text-zinc-400 text-[11px] flex gap-2 items-center"><NoiseIcon /> Noise</label>
+                    <span className="text-zinc-500">{Math.round((selectedElement.noise || 0) * 100)}%</span>
+                 </div>
+                 <input type="range" min="0" max="0.5" step="0.01" value={selectedElement.noise || 0} onChange={e => handleInputChange('noise', parseFloat(e.target.value))} className="w-full accent-white h-1 bg-zinc-800 rounded appearance-none"/>
+              </div>
+          </section>
         </div>
       )}
 
@@ -215,8 +270,8 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedElements, onU
                          </div>
                     </>
                 ) : (
-                    <button onClick={() => handleAiAction('modify')} disabled={isProcessing} className="w-full bg-white hover:bg-zinc-200 text-black font-medium py-2 px-3 rounded-md transition-all flex items-center justify-center gap-2">
-                        <SparklesIcon /> {isProcessing ? 'Processing...' : 'Apply'}
+                    <button onClick={() => handleAiAction('modify')} disabled={isProcessing} className="w-full bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-yellow-300 via-orange-400 to-rose-500 hover:opacity-90 text-black font-medium py-2 px-3 rounded-md transition-all flex items-center justify-center gap-2">
+                        <SparklesIcon /> {isProcessing ? 'Processing...' : 'Apply Magic'}
                     </button>
                 )}
             </div>

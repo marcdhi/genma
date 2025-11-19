@@ -4,16 +4,17 @@ import Canvas from './components/Canvas';
 import PropertiesPanel from './components/PropertiesPanel';
 import ChatWidget from './components/ChatWidget';
 import { CanvasElement, ElementType } from './types';
-import { CursorIcon, HandIcon, SquareIcon, CircleIcon, TextIcon, ImageIcon, FrameIcon, MagicIcon, Spinner, LockIcon } from './components/Icons';
-import { generateUiDesign, GeneratedElement, generateImage, GeneratedScreen } from './services/geminiService';
+import { CursorIcon, HandIcon, SquareIcon, CircleIcon, TextIcon, ImageIcon, FrameIcon, MagicIcon, Spinner, LockIcon, HelpIcon, PenIcon, PencilIcon, VectorIcon } from './components/Icons';
+import { generateUiDesign, GeneratedElement, generateImage, GeneratedScreen, generateSvg } from './services/geminiService';
 
 const App: React.FC = () => {
   const [elements, setElements] = useState<CanvasElement[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [activeTool, setActiveTool] = useState<'cursor' | 'hand' | 'rect' | 'circle' | 'text' | 'frame'>('cursor');
+  const [activeTool, setActiveTool] = useState<'cursor' | 'hand' | 'rect' | 'circle' | 'text' | 'frame' | 'pen' | 'pencil'>('cursor');
   const [draggedLayerId, setDraggedLayerId] = useState<string | null>(null);
   const [scale, setScale] = useState(1);
   const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [clipboard, setClipboard] = useState<CanvasElement[]>([]);
   
   // Gen AI Modal State
   const [isGenModalOpen, setIsGenModalOpen] = useState(false);
@@ -21,6 +22,13 @@ const App: React.FC = () => {
   const [genVibe, setGenVibe] = useState('Modern');
   const [isGenerating, setIsGenerating] = useState(false);
   const [genStatus, setGenStatus] = useState('');
+  
+  // Vector Gen Modal
+  const [isVectorModalOpen, setIsVectorModalOpen] = useState(false);
+  const [vectorPrompt, setVectorPrompt] = useState('');
+  
+  // Help Modal State
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
 
   // Delete logic
   const deleteSelectedElements = () => {
@@ -28,28 +36,9 @@ const App: React.FC = () => {
     setSelectedIds([]);
   };
 
-  // Keyboard Shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-        if ((e.key === 'Delete' || e.key === 'Backspace') && !renamingId) {
-            // Check if we are focusing on an input
-            const activeTag = document.activeElement?.tagName.toLowerCase();
-            if (activeTag !== 'input' && activeTag !== 'textarea') {
-                deleteSelectedElements();
-            }
-        }
-        // Hand tool shortcut 'h'
-        if (e.key === 'h' && !renamingId && document.activeElement?.tagName.toLowerCase() !== 'input') {
-            setActiveTool('hand');
-        }
-        // Move tool shortcut 'v'
-        if (e.key === 'v' && !renamingId && document.activeElement?.tagName.toLowerCase() !== 'input') {
-            setActiveTool('cursor');
-        }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedIds, renamingId]);
+  const updateElement = (id: string, updates: Partial<CanvasElement>) => {
+    setElements(prev => prev.map(el => el.id === id ? { ...el, ...updates } : el));
+  };
 
   const addElement = (type: ElementType, content?: string) => {
     const id = crypto.randomUUID();
@@ -71,10 +60,128 @@ const App: React.FC = () => {
       fontFamily: 'Inter, sans-serif',
       fontSize: 16,
     };
-    setElements([...elements, newElement]);
+    setElements(prev => [...prev, newElement]);
     setSelectedIds([newElement.id]);
     setActiveTool('cursor'); 
   };
+
+  const handleAddElement = (element: Partial<CanvasElement>) => {
+    const id = crypto.randomUUID();
+    const newEl = {
+        id,
+        name: `Path ${elements.filter(e => e.type === ElementType.PATH).length + 1}`,
+        type: ElementType.PATH,
+        rotation: 0,
+        opacity: 1,
+        borderRadius: 0,
+        locked: false,
+        fill: 'transparent',
+        stroke: '#ffffff', 
+        ...element
+    } as CanvasElement;
+    setElements(prev => [...prev, newEl]);
+    setSelectedIds([id]);
+    // Keep tool active for multiple draws
+  };
+
+  // Keyboard Shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+        const activeElement = document.activeElement;
+        const activeTag = activeElement?.tagName.toLowerCase();
+        const isInputActive = activeTag === 'input' || activeTag === 'textarea';
+
+        if (e.key === 'Escape') {
+             if (isInputActive) {
+                 (activeElement as HTMLElement).blur();
+                 return;
+             }
+             setSelectedIds([]);
+             setIsGenModalOpen(false);
+             setIsVectorModalOpen(false);
+             setIsHelpOpen(false);
+             setActiveTool('cursor');
+             return;
+        }
+
+        if (isInputActive) return;
+
+        // Copy: Cmd/Ctrl + C
+        if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'c') {
+            e.preventDefault();
+            const toCopy = elements.filter(el => selectedIds.includes(el.id));
+            if (toCopy.length > 0) {
+                setClipboard(toCopy);
+            }
+            return;
+        }
+
+        // Paste: Cmd/Ctrl + V
+        if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'v') {
+            e.preventDefault();
+            if (clipboard.length === 0) return;
+
+            const newIds: string[] = [];
+            const newElements = clipboard.map(el => {
+                const newId = crypto.randomUUID();
+                newIds.push(newId);
+                return {
+                    ...el,
+                    id: newId,
+                    x: el.x + 20,
+                    y: el.y + 20,
+                    name: el.name,
+                };
+            });
+
+            setElements(prev => [...prev, ...newElements]);
+            setSelectedIds(newIds);
+            return;
+        }
+
+        // Tools
+        switch(e.key.toLowerCase()) {
+            case 'v': setActiveTool('cursor'); break;
+            case 'h': setActiveTool('hand'); break;
+            case 'r': addElement(ElementType.RECTANGLE); break;
+            case 'o': addElement(ElementType.CIRCLE); break;
+            case 't': addElement(ElementType.TEXT); break;
+            case 'f': addElement(ElementType.FRAME); break;
+            case 'p': if(!e.shiftKey) setActiveTool('pen'); break;
+        }
+        
+        if (e.shiftKey && e.key.toLowerCase() === 'p') {
+           setActiveTool('pencil');
+        }
+
+        // Deletion
+        if (e.key === 'Delete' || e.key === 'Backspace') {
+            deleteSelectedElements();
+        }
+
+        // Typography Sizing (Cmd/Ctrl + Shift + < or >)
+        if ((e.metaKey || e.ctrlKey) && e.shiftKey) {
+            if (e.key === '>' || e.key === '.') {
+                e.preventDefault();
+                elements.forEach(el => {
+                    if (selectedIds.includes(el.id) && el.type === ElementType.TEXT) {
+                        updateElement(el.id, { fontSize: (el.fontSize || 16) + 2 });
+                    }
+                });
+            }
+            if (e.key === '<' || e.key === ',') {
+                e.preventDefault();
+                elements.forEach(el => {
+                    if (selectedIds.includes(el.id) && el.type === ElementType.TEXT) {
+                        updateElement(el.id, { fontSize: Math.max(8, (el.fontSize || 16) - 2) });
+                    }
+                });
+            }
+        }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedIds, elements, renamingId, clipboard]);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -86,6 +193,31 @@ const App: React.FC = () => {
       };
       reader.readAsDataURL(e.target.files[0]);
     }
+  };
+
+  const handleGenerateVector = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!vectorPrompt) return;
+      setIsGenerating(true);
+      try {
+          const pathData = await generateSvg(vectorPrompt);
+          handleAddElement({
+              type: ElementType.PATH,
+              content: pathData,
+              width: 100,
+              height: 100,
+              x: 100 + elements.length * 10,
+              y: 100 + elements.length * 10,
+              fill: '#ffffff',
+              stroke: 'none'
+          });
+          setIsVectorModalOpen(false);
+          setVectorPrompt('');
+      } catch (e) {
+          alert('Failed to generate SVG');
+      } finally {
+          setIsGenerating(false);
+      }
   };
 
   const handleGenerateDesign = async (e: React.FormEvent) => {
@@ -192,10 +324,6 @@ const App: React.FC = () => {
     }
   };
 
-  const updateElement = (id: string, updates: Partial<CanvasElement>) => {
-    setElements(prev => prev.map(el => el.id === id ? { ...el, ...updates } : el));
-  };
-
   // Layer Drag and Drop Handlers
   const handleDragStart = (e: React.DragEvent, id: string) => {
     setDraggedLayerId(id);
@@ -238,7 +366,7 @@ const App: React.FC = () => {
         {/* Left: Branding */}
         <div className="flex items-center gap-4">
           <div className="font-bold tracking-tight text-zinc-100 text-sm flex items-center gap-2 select-none">
-            <div className="w-3 h-3 bg-white rounded-sm"></div>
+            <div className="w-5 h-5 rounded-md bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-yellow-300 via-orange-400 to-rose-500 shadow-sm"></div>
             Genma
           </div>
         </div>
@@ -253,7 +381,10 @@ const App: React.FC = () => {
             <button onClick={() => addElement(ElementType.RECTANGLE)} className="p-1.5 rounded hover:bg-zinc-800 transition-colors text-zinc-500 hover:text-zinc-300" title="Rectangle (R)"><SquareIcon /></button>
             <button onClick={() => addElement(ElementType.CIRCLE)} className="p-1.5 rounded hover:bg-zinc-800 transition-colors text-zinc-500 hover:text-zinc-300" title="Circle (O)"><CircleIcon /></button>
             <button onClick={() => addElement(ElementType.TEXT)} className="p-1.5 rounded hover:bg-zinc-800 transition-colors text-zinc-500 hover:text-zinc-300" title="Text (T)"><TextIcon /></button>
+            <button onClick={() => setActiveTool('pen')} className={`p-1.5 rounded hover:bg-zinc-800 transition-colors ${activeTool === 'pen' ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-zinc-300'}`} title="Pen Tool (P)"><PenIcon /></button>
+            <button onClick={() => setActiveTool('pencil')} className={`p-1.5 rounded hover:bg-zinc-800 transition-colors ${activeTool === 'pencil' ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-zinc-300'}`} title="Pencil Tool (Shift+P)"><PencilIcon /></button>
             <label className="p-1.5 rounded hover:bg-zinc-800 transition-colors text-zinc-500 hover:text-zinc-300 cursor-pointer" title="Image (I)"><ImageIcon /><input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} /></label>
+            <button onClick={() => setIsVectorModalOpen(true)} className="p-1.5 rounded hover:bg-zinc-800 transition-colors text-zinc-500 hover:text-zinc-300" title="Generate Vector"><VectorIcon /></button>
             <div className="w-px h-4 bg-zinc-800 mx-1"></div>
             <button onClick={() => setIsGenModalOpen(true)} className="p-1.5 rounded hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors" title="Generate UI"><MagicIcon /></button>
           </div>
@@ -262,6 +393,7 @@ const App: React.FC = () => {
         {/* Right: Zoom/Status */}
         <div className="flex items-center gap-3">
            {isGenerating && <div className="flex items-center gap-2 text-[10px] font-medium text-zinc-400 uppercase tracking-wider"><Spinner /> {genStatus}</div>}
+           <button onClick={() => setIsHelpOpen(true)} className="text-zinc-500 hover:text-zinc-300 p-1"><HelpIcon /></button>
            <div className="flex items-center text-[10px] font-medium text-zinc-500 gap-2">
              <button onClick={() => setScale(Math.max(0.1, scale - 0.1))} className="hover:text-white px-1">-</button>
              <span className="w-8 text-center">{Math.round(scale * 100)}%</span>
@@ -334,6 +466,7 @@ const App: React.FC = () => {
           selectedIds={selectedIds} 
           onSelect={setSelectedIds}
           onUpdateElement={updateElement}
+          onAddElement={handleAddElement}
           scale={scale}
           setScale={setScale}
           activeTool={activeTool}
@@ -345,6 +478,37 @@ const App: React.FC = () => {
           onUpdateElement={updateElement}
           onDeleteElement={deleteSelectedElements}
         />
+
+        {/* Vector Generator Modal */}
+        {isVectorModalOpen && (
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center" onClick={() => setIsVectorModalOpen(false)}>
+                <div className="bg-[#09090b] border border-zinc-800 rounded-xl shadow-2xl w-[400px] overflow-hidden animate-in fade-in zoom-in duration-200" onClick={e => e.stopPropagation()}>
+                   <div className="p-3 border-b border-zinc-800 flex justify-between items-center bg-zinc-900/50">
+                       <div className="flex items-center gap-2">
+                           <VectorIcon />
+                           <span className="text-xs font-medium text-white">Vector Generator</span>
+                       </div>
+                       <button onClick={() => setIsVectorModalOpen(false)} className="text-zinc-500 hover:text-white">✕</button>
+                   </div>
+                   <form onSubmit={handleGenerateVector} className="p-4">
+                       <textarea 
+                           autoFocus
+                           value={vectorPrompt}
+                           onChange={e => setVectorPrompt(e.target.value)}
+                           placeholder="Describe the icon (e.g., 'A cute rocket ship outline', 'Minimalist star')"
+                           className="w-full bg-zinc-900 text-white text-sm border border-zinc-800 rounded p-3 mb-4 h-24 focus:outline-none focus:border-zinc-600 resize-none"
+                       />
+                       <button 
+                         type="submit"
+                         disabled={isGenerating}
+                         className="w-full bg-white text-black py-2 rounded-md font-medium text-xs hover:bg-zinc-200 transition-colors disabled:opacity-50"
+                       >
+                           {isGenerating ? 'Generating Vector...' : 'Generate SVG'}
+                       </button>
+                   </form>
+                </div>
+            </div>
+        )}
 
         {/* Pro Generation Modal */}
         {isGenModalOpen && (
@@ -368,7 +532,7 @@ const App: React.FC = () => {
                      className="w-full bg-transparent text-white text-sm placeholder-zinc-600 focus:outline-none h-32 resize-none leading-relaxed"
                    />
                    <div className="absolute bottom-0 right-0 pointer-events-none">
-                       <span className="text-[10px] text-zinc-700 bg-[#09090b] px-1">Gemini 3 Pro</span>
+                       <span className="text-[10px] text-zinc-700 bg-[#09090b] px-1">Gemini 2.5 Flash</span>
                    </div>
                  </div>
                  
@@ -391,13 +555,51 @@ const App: React.FC = () => {
                  <button 
                    type="submit" 
                    disabled={isGenerating}
-                   className="w-full bg-white hover:bg-zinc-200 text-black py-2.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                   className="w-full bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-yellow-300 via-orange-400 to-rose-500 hover:opacity-90 text-black py-2.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                  >
                    {isGenerating ? <Spinner /> : 'Generate Design'}
                  </button>
                </form>
             </div>
           </div>
+        )}
+
+        {/* Help Modal */}
+        {isHelpOpen && (
+           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center" onClick={() => setIsHelpOpen(false)}>
+               <div className="bg-[#09090b] border border-zinc-800 rounded-xl shadow-2xl w-[400px] overflow-hidden animate-in fade-in zoom-in duration-200" onClick={e => e.stopPropagation()}>
+                  <div className="p-4 border-b border-zinc-800 flex justify-between items-center bg-zinc-900/50">
+                      <h3 className="font-medium text-white text-sm">Keyboard Shortcuts</h3>
+                      <button onClick={() => setIsHelpOpen(false)} className="text-zinc-500 hover:text-white">✕</button>
+                  </div>
+                  <div className="p-4 grid grid-cols-2 gap-x-8 gap-y-4 text-xs">
+                      <div>
+                          <h4 className="text-zinc-500 uppercase tracking-wider font-bold mb-2 text-[10px]">Tools</h4>
+                          <div className="space-y-2">
+                              <div className="flex justify-between"><span className="text-zinc-300">Cursor</span> <kbd className="bg-zinc-800 px-1.5 rounded text-zinc-400 font-mono">V</kbd></div>
+                              <div className="flex justify-between"><span className="text-zinc-300">Hand</span> <kbd className="bg-zinc-800 px-1.5 rounded text-zinc-400 font-mono">H</kbd></div>
+                              <div className="flex justify-between"><span className="text-zinc-300">Frame</span> <kbd className="bg-zinc-800 px-1.5 rounded text-zinc-400 font-mono">F</kbd></div>
+                              <div className="flex justify-between"><span className="text-zinc-300">Text</span> <kbd className="bg-zinc-800 px-1.5 rounded text-zinc-400 font-mono">T</kbd></div>
+                              <div className="flex justify-between"><span className="text-zinc-300">Rectangle</span> <kbd className="bg-zinc-800 px-1.5 rounded text-zinc-400 font-mono">R</kbd></div>
+                              <div className="flex justify-between"><span className="text-zinc-300">Circle</span> <kbd className="bg-zinc-800 px-1.5 rounded text-zinc-400 font-mono">O</kbd></div>
+                              <div className="flex justify-between"><span className="text-zinc-300">Pen</span> <kbd className="bg-zinc-800 px-1.5 rounded text-zinc-400 font-mono">P</kbd></div>
+                              <div className="flex justify-between"><span className="text-zinc-300">Pencil</span> <kbd className="bg-zinc-800 px-1.5 rounded text-zinc-400 font-mono">⇧P</kbd></div>
+                          </div>
+                      </div>
+                      <div>
+                          <h4 className="text-zinc-500 uppercase tracking-wider font-bold mb-2 text-[10px]">Actions</h4>
+                          <div className="space-y-2">
+                              <div className="flex justify-between"><span className="text-zinc-300">Delete</span> <kbd className="bg-zinc-800 px-1.5 rounded text-zinc-400 font-mono">Del</kbd></div>
+                              <div className="flex justify-between"><span className="text-zinc-300">Copy</span> <kbd className="bg-zinc-800 px-1.5 rounded text-zinc-400 font-mono">⌘C</kbd></div>
+                              <div className="flex justify-between"><span className="text-zinc-300">Paste</span> <kbd className="bg-zinc-800 px-1.5 rounded text-zinc-400 font-mono">⌘V</kbd></div>
+                              <div className="flex justify-between"><span className="text-zinc-300">Deselect</span> <kbd className="bg-zinc-800 px-1.5 rounded text-zinc-400 font-mono">Esc</kbd></div>
+                              <div className="flex justify-between"><span className="text-zinc-300">Zoom In</span> <kbd className="bg-zinc-800 px-1.5 rounded text-zinc-400 font-mono">Ctrl +</kbd></div>
+                              <div className="flex justify-between"><span className="text-zinc-300">Zoom Out</span> <kbd className="bg-zinc-800 px-1.5 rounded text-zinc-400 font-mono">Ctrl -</kbd></div>
+                          </div>
+                      </div>
+                  </div>
+               </div>
+           </div>
         )}
       </div>
 

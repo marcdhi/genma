@@ -104,12 +104,14 @@ export const modifyCanvasElement = async (element: CanvasElement, prompt: string
     Current Element JSON: ${JSON.stringify(element)}
     
     Available changes:
-    - fill (hex color)
+    - fill (hex color or linear-gradient string)
     - width, height, x, y (numbers)
     - borderRadius (number)
     - fontSize, fontWeight, fontFamily (if text)
     - content (if text)
     - opacity (0-1)
+    - blur (px number)
+    - noise (0-1 opacity)
     
     Example: User says "Make it a red circle", you return { "type": "CIRCLE", "fill": "#ff0000", "borderRadius": 50 }
   `;
@@ -133,7 +135,9 @@ export const modifyCanvasElement = async (element: CanvasElement, prompt: string
           fontSize: { type: Type.NUMBER },
           fontWeight: { type: Type.STRING },
           content: { type: Type.STRING },
-          opacity: { type: Type.NUMBER }
+          opacity: { type: Type.NUMBER },
+          blur: { type: Type.NUMBER },
+          noise: { type: Type.NUMBER },
         }
       }
     }
@@ -166,6 +170,23 @@ export const generateImage = async (prompt: string): Promise<string> => {
   }
   throw new Error("Image generation failed");
 };
+
+/**
+ * Generate SVG Vector
+ */
+export const generateSvg = async (prompt: string): Promise<string> => {
+  const ai = getAiClient();
+  const response = await ai.models.generateContent({
+    model: 'gemini-2.5-flash',
+    contents: `Generate a simplified SVG path data string (d attribute only) for an icon representing: ${prompt}.
+    Return ONLY the path data string. Do not wrap in xml or svg tags.
+    Example: M10 10 H 90 V 90 H 10 Z`,
+    config: {
+      responseMimeType: 'text/plain'
+    }
+  });
+  return response.text?.trim() || "M0 0";
+}
 
 /**
  * Generate Video using Veo
@@ -280,11 +301,11 @@ export const generateUiDesign = async (prompt: string, vibe: string = 'Modern'):
   ];
 
   const response = await ai.models.generateContent({
-    model: 'gemini-3-pro-preview',
+    model: 'gemini-2.5-flash',
     contents: contents,
     config: {
       systemInstruction: systemInstruction,
-      maxOutputTokens: 65536, 
+      maxOutputTokens: 8192, 
       thinkingConfig: { thinkingBudget: 2048 },
       responseMimeType: 'application/json',
       responseSchema: {
