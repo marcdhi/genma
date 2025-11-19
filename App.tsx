@@ -3,11 +3,14 @@ import React, { useState, useEffect } from 'react';
 import Canvas from './components/Canvas';
 import PropertiesPanel from './components/PropertiesPanel';
 import ChatWidget from './components/ChatWidget';
+import LandingPage from './components/LandingPage';
+import OnboardingModal from './components/OnboardingModal';
 import { CanvasElement, ElementType } from './types';
 import { CursorIcon, HandIcon, SquareIcon, CircleIcon, TextIcon, ImageIcon, FrameIcon, MagicIcon, Spinner, LockIcon, HelpIcon, PenIcon, PencilIcon, VectorIcon } from './components/Icons';
 import { generateUiDesign, GeneratedElement, generateImage, GeneratedScreen, generateSvg } from './services/geminiService';
 
 const App: React.FC = () => {
+  const [view, setView] = useState<'landing' | 'app'>('landing');
   const [elements, setElements] = useState<CanvasElement[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [activeTool, setActiveTool] = useState<'cursor' | 'hand' | 'rect' | 'circle' | 'text' | 'frame' | 'pen' | 'pencil'>('cursor');
@@ -29,6 +32,24 @@ const App: React.FC = () => {
   
   // Help Modal State
   const [isHelpOpen, setIsHelpOpen] = useState(false);
+
+  // Onboarding State
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  // Check onboarding on view change
+  useEffect(() => {
+      if (view === 'app') {
+          const hasOnboarded = localStorage.getItem('genma_onboarded');
+          if (!hasOnboarded) {
+              setShowOnboarding(true);
+          }
+      }
+  }, [view]);
+
+  const handleCloseOnboarding = () => {
+      localStorage.setItem('genma_onboarded', 'true');
+      setShowOnboarding(false);
+  };
 
   // Delete logic
   const deleteSelectedElements = () => {
@@ -86,6 +107,8 @@ const App: React.FC = () => {
 
   // Keyboard Shortcuts
   useEffect(() => {
+    if (view !== 'app') return;
+
     const handleKeyDown = (e: KeyboardEvent) => {
         const activeElement = document.activeElement;
         const activeTag = activeElement?.tagName.toLowerCase();
@@ -100,6 +123,7 @@ const App: React.FC = () => {
              setIsGenModalOpen(false);
              setIsVectorModalOpen(false);
              setIsHelpOpen(false);
+             setShowOnboarding(false);
              setActiveTool('cursor');
              return;
         }
@@ -181,7 +205,7 @@ const App: React.FC = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedIds, elements, renamingId, clipboard]);
+  }, [selectedIds, elements, renamingId, clipboard, view]);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -358,6 +382,10 @@ const App: React.FC = () => {
 
   const selectedElements = elements.filter(el => selectedIds.includes(el.id));
 
+  if (view === 'landing') {
+      return <LandingPage onLaunch={() => setView('app')} />;
+  }
+
   return (
     <div className="flex flex-col h-screen bg-[#09090b] text-zinc-300 overflow-hidden font-sans selection:bg-zinc-700 selection:text-white">
       
@@ -365,7 +393,7 @@ const App: React.FC = () => {
       <div className="h-12 bg-[#09090b] border-b border-zinc-800 flex items-center px-4 justify-between z-20 relative">
         {/* Left: Branding */}
         <div className="flex items-center gap-4">
-          <div className="font-bold tracking-tight text-zinc-100 text-sm flex items-center gap-2 select-none">
+          <div className="font-bold tracking-tight text-zinc-100 text-sm flex items-center gap-2 select-none cursor-pointer" onClick={() => setView('landing')}>
             <div className="w-5 h-5 rounded-md bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-yellow-300 via-orange-400 to-rose-500 shadow-sm"></div>
             Genma
           </div>
@@ -601,6 +629,10 @@ const App: React.FC = () => {
                </div>
            </div>
         )}
+
+        {/* Onboarding Modal */}
+        {showOnboarding && <OnboardingModal onClose={handleCloseOnboarding} />}
+
       </div>
 
       <ChatWidget />
