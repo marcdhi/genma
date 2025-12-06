@@ -23,6 +23,7 @@ const NOISE_PATTERN = "data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='ht
 
 const Canvas: React.FC<CanvasProps> = ({ elements, selectedIds, onSelect, onUpdateElement, onAddElement, scale, setScale, activeTool }) => {
   const canvasRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
@@ -421,7 +422,7 @@ const Canvas: React.FC<CanvasProps> = ({ elements, selectedIds, onSelect, onUpda
     setSnapLines({});
   };
 
-  const handleWheel = (e: React.WheelEvent) => {
+  const handleWheel = (e: WheelEvent) => {
       if (e.ctrlKey || e.metaKey) {
           e.preventDefault();
           const delta = -e.deltaY;
@@ -442,13 +443,32 @@ const Canvas: React.FC<CanvasProps> = ({ elements, selectedIds, onSelect, onUpda
     return () => window.removeEventListener('mouseup', fn);
   }, []);
 
+  // Wheel event listener with passive: false to allow preventDefault
+  const wheelHandlerRef = useRef(handleWheel);
+  wheelHandlerRef.current = handleWheel;
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const wheelHandler = (e: WheelEvent) => {
+      wheelHandlerRef.current(e);
+    };
+
+    container.addEventListener('wheel', wheelHandler, { passive: false });
+    return () => {
+      container.removeEventListener('wheel', wheelHandler);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty deps - ref pattern ensures latest handleWheel is used
+
   return (
     <div 
+      ref={containerRef}
       className="flex-1 bg-[#09090b] relative overflow-hidden"
       onMouseMove={handleMouseMove}
       onMouseDown={(e) => handleMouseDown(e)}
       onDoubleClick={(e) => handleDoubleClick(e)}
-      onWheel={handleWheel}
       style={{ 
           cursor: isPanning ? 'grabbing' : (isHandTool ? 'grab' : (isDrawTool ? 'crosshair' : 'default')),
           userSelect: 'none'
