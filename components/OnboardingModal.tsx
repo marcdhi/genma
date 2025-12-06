@@ -11,7 +11,7 @@ const steps = [
     title: "Welcome to Genma",
     description: "Your new AI-native design environment. Craft interfaces, icons, and interactions at the speed of thought.",
     icon: (
-      <div className="w-24 h-24 rounded-2xl bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-yellow-300 via-orange-400 to-rose-500 shadow-[0_0_40px_-10px_rgba(251,146,60,0.4)] flex items-center justify-center transform transition-transform hover:scale-105 duration-500">
+      <div className="w-24 h-24 rounded-2xl bg-gradient-brand shadow-[0_0_40px_-10px_rgba(251,146,60,0.4)] flex items-center justify-center transform transition-transform hover:scale-105 duration-500">
          <span className="text-4xl font-bold text-black tracking-tighter">Gn</span>
       </div>
     )
@@ -71,7 +71,7 @@ const steps = [
              <div className="absolute -top-4 -right-4 text-rose-500 animate-pulse scale-125">
                  <SparklesIcon />
              </div>
-             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-16 bg-[radial-gradient(circle,_rgba(251,146,60,0.2)_0%,_transparent_70%)] pointer-events-none"></div>
+             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-16 bg-gradient-glow pointer-events-none"></div>
         </div>
     )
   }
@@ -94,7 +94,7 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onClose }) => {
                {/* Progress Bar */}
                <div className="absolute top-0 left-0 h-1 bg-zinc-800 w-full z-10">
                    <div 
-                     className="h-full bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-yellow-300 via-orange-400 to-rose-500 transition-all duration-500 ease-out"
+                     className="h-full bg-gradient-brand transition-all duration-500 ease-out"
                      style={{ width: `${((step + 1) / steps.length) * 100}%` }}
                    />
                </div>
@@ -127,7 +127,7 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onClose }) => {
                    
                    <button 
                      onClick={handleNext}
-                     className="px-6 py-2.5 bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-yellow-300 via-orange-400 to-rose-500 text-black text-xs font-bold rounded-lg shadow-lg hover:opacity-90 transition-all transform active:scale-95 flex items-center gap-2"
+                     className="px-6 py-2.5 bg-gradient-brand text-black text-xs font-bold rounded-lg shadow-lg hover:opacity-90 transition-all transform active:scale-95 flex items-center gap-2"
                    >
                        {step === steps.length - 1 ? 'Start Creating' : 'Next'}
                    </button>

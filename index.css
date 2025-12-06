@@ -1,0 +1,21 @@
+@import "tailwindcss";
+
+/* Custom gradient utilities for brand colors */
+.bg-gradient-brand {
+  background: radial-gradient(ellipse at top left, rgb(253 224 71), rgb(251 146 60), rgb(244 63 94));
+}
+
+.bg-gradient-brand-text {
+  background: radial-gradient(ellipse at top left, rgb(253 224 71), rgb(251 146 60), rgb(244 63 94));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.bg-gradient-ambience {
+  background: radial-gradient(ellipse at center, rgba(154, 52, 18, 0.1), rgba(24, 24, 27, 0.05), transparent);
+}
+
+.bg-gradient-glow {
+  background: radial-gradient(circle, rgba(251, 146, 60, 0.2) 0%, transparent 70%);
+}

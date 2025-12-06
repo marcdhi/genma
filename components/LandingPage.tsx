@@ -12,7 +12,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLaunch }) => {
       {/* Minimal Nav */}
       <nav className="h-16 border-b border-zinc-900 flex items-center justify-between px-6 lg:px-12 fixed top-0 w-full z-50 bg-[#050505]/80 backdrop-blur-md supports-[backdrop-filter]:bg-[#050505]/60">
         <div className="flex items-center gap-3 font-medium tracking-tight cursor-pointer" onClick={onLaunch}>
-          <div className="w-5 h-5 rounded bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-yellow-300 via-orange-400 to-rose-500"></div>
+          <div className="w-5 h-5 rounded bg-gradient-brand"></div>
           <span className="text-sm text-zinc-300">Genma</span>
         </div>
         <button 
@@ -27,7 +27,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLaunch }) => {
       <main className="flex-1 flex flex-col items-center pt-32 px-4 relative">
         
         {/* Background Ambience */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[500px] bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-orange-900/10 via-zinc-900/5 to-transparent blur-3xl pointer-events-none" />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[500px] bg-gradient-ambience blur-3xl pointer-events-none" />
         
         <div className="relative z-10 max-w-3xl mx-auto text-center space-y-8 mb-16">
            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-zinc-800 bg-zinc-900/30 backdrop-blur-sm text-[10px] font-medium text-zinc-500 uppercase tracking-wider fade-in slide-in-from-bottom-4 duration-700">
@@ -37,7 +37,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLaunch }) => {
            
            <h1 className="text-5xl md:text-7xl font-bold tracking-tighter text-white leading-[1.1]">
              Interface design <br/> 
-             <span className="text-transparent bg-clip-text bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-yellow-300 via-orange-400 to-rose-500">for the intelligence age.</span>
+             <span className="bg-gradient-brand-text">for the intelligence age.</span>
            </h1>
            
            <p className="text-lg text-zinc-500 max-w-lg mx-auto font-light leading-relaxed">
@@ -47,7 +47,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLaunch }) => {
            <div className="pt-4">
              <button 
                onClick={onLaunch}
-               className="px-8 py-3 bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-yellow-300 via-orange-400 to-rose-500 text-black rounded-lg text-sm font-bold hover:opacity-90 transition-opacity shadow-[0_0_30px_-10px_rgba(251,146,60,0.3)]"
+               className="px-8 py-3 bg-gradient-brand text-black rounded-lg text-sm font-bold hover:opacity-90 transition-opacity shadow-[0_0_30px_-10px_rgba(251,146,60,0.3)]"
              >
                Start Creating
              </button>
@@ -109,14 +109,14 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLaunch }) => {
                                  <div className="w-32 h-8 bg-zinc-800 rounded"></div>
                                  <div className="w-full h-2 bg-zinc-900 rounded"></div>
                                  <div className="w-2/3 h-2 bg-zinc-900 rounded"></div>
-                                 <div className="w-24 h-8 rounded bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-yellow-300 via-orange-400 to-rose-500 mt-4"></div>
+                                 <div className="w-24 h-8 rounded bg-gradient-brand mt-4"></div>
                              </div>
                              <div className="w-48 h-32 bg-zinc-900 rounded-lg border border-zinc-800 flex items-center justify-center">
                                  <div className="w-12 h-12 rounded-full bg-zinc-800 border border-zinc-700"></div>
                              </div>
                         </div>
                         {/* AI Cursor Mockup */}
-                        <div className="absolute bottom-12 right-12 bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-yellow-300 via-orange-400 to-rose-500 text-black text-[10px] font-bold px-3 py-1.5 rounded-full rounded-tl-none shadow-lg transform translate-x-2 translate-y-2">
+                        <div className="absolute bottom-12 right-12 bg-gradient-brand text-black text-[10px] font-bold px-3 py-1.5 rounded-full rounded-tl-none shadow-lg transform translate-x-2 translate-y-2">
                             Genma is cooking
                         </div>
                     </div>
@@ -220,7 +220,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLaunch }) => {
           <h2 className="text-2xl font-bold tracking-tight text-white mb-8">Ready to build?</h2>
           <button 
             onClick={onLaunch}
-            className="px-6 py-2 bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-yellow-300 via-orange-400 to-rose-500 text-black font-medium rounded text-sm hover:opacity-90 transition-opacity"
+            className="px-6 py-2 bg-gradient-brand text-black font-medium rounded text-sm hover:opacity-90 transition-opacity"
           >
             Launch Genma
           </button>

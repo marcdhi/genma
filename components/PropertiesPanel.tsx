@@ -270,7 +270,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedElements, onU
                          </div>
                     </>
                 ) : (
-                    <button onClick={() => handleAiAction('modify')} disabled={isProcessing} className="w-full bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-yellow-300 via-orange-400 to-rose-500 hover:opacity-90 text-black font-medium py-2 px-3 rounded-md transition-all flex items-center justify-center gap-2">
+                    <button onClick={() => handleAiAction('modify')} disabled={isProcessing} className="w-full bg-gradient-brand hover:opacity-90 text-black font-medium py-2 px-3 rounded-md transition-all flex items-center justify-center gap-2">
                         <SparklesIcon /> {isProcessing ? 'Processing...' : 'Apply Magic'}
                     </button>
                 )}

@@ -394,7 +394,7 @@ const App: React.FC = () => {
         {/* Left: Branding */}
         <div className="flex items-center gap-4">
           <div className="font-bold tracking-tight text-zinc-100 text-sm flex items-center gap-2 select-none cursor-pointer" onClick={() => setView('landing')}>
-            <div className="w-5 h-5 rounded-md bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-yellow-300 via-orange-400 to-rose-500 shadow-sm"></div>
+            <div className="w-5 h-5 rounded-md bg-gradient-brand shadow-sm"></div>
             Genma
           </div>
         </div>
@@ -583,7 +583,7 @@ const App: React.FC = () => {
                  <button 
                    type="submit" 
                    disabled={isGenerating}
-                   className="w-full bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-yellow-300 via-orange-400 to-rose-500 hover:opacity-90 text-black py-2.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                   className="w-full bg-gradient-brand hover:opacity-90 text-black py-2.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                  >
                    {isGenerating ? <Spinner /> : 'Generate Design'}
                  </button>
