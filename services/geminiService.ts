@@ -18,6 +18,23 @@ const cleanAndParseJson = (text: string) => {
     cleaned = cleaned.substring(firstOpen, lastClose + 1);
   }
   
+  // Normalize numeric values to prevent extremely long decimal representations
+  // This regex finds numbers (including negative) with decimal points that have excessive precision
+  // Matches numbers like: 488.00000000000006... (with 16+ decimal digits)
+  cleaned = cleaned.replace(/(-?\d+\.\d{10,})/g, (match) => {
+    try {
+      const num = parseFloat(match);
+      // Check if it's essentially an integer (within floating point precision)
+      if (Math.abs(num - Math.round(num)) < 1e-10) {
+        return Math.round(num).toString();
+      }
+      // Otherwise, normalize to reasonable precision (max 10 decimal places)
+      return num.toFixed(10).replace(/\.?0+$/, '');
+    } catch {
+      return match; // If parsing fails, return original
+    }
+  });
+  
   try {
     return JSON.parse(cleaned);
   } catch (e) {
